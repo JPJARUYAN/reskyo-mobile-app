@@ -14,6 +14,7 @@ class IncidentModel {
   final DateTime updatedAt;
   final String? verifiedBy;
   final String? barangay;
+  final double? distanceKm;
 
   IncidentModel({
     required this.id,
@@ -29,6 +30,7 @@ class IncidentModel {
     required this.updatedAt,
     this.verifiedBy,
     this.barangay,
+    this.distanceKm,
   });
 
   factory IncidentModel.fromJson(Map<String, dynamic> json) {
@@ -52,6 +54,9 @@ class IncidentModel {
       updatedAt: DateTime.parse(json['updated_at'] as String),
       verifiedBy: json['verified_by'] as String?,
       barangay: json['barangay'] as String?,
+      distanceKm: json['distance_km'] != null
+          ? (json['distance_km'] as num).toDouble()
+          : null,
     );
   }
 
@@ -87,6 +92,7 @@ class IncidentModel {
     DateTime? updatedAt,
     String? verifiedBy,
     String? barangay,
+    double? distanceKm,
   }) {
     return IncidentModel(
       id: id ?? this.id,
@@ -102,6 +108,7 @@ class IncidentModel {
       updatedAt: updatedAt ?? this.updatedAt,
       verifiedBy: verifiedBy ?? this.verifiedBy,
       barangay: barangay ?? this.barangay,
+      distanceKm: distanceKm ?? this.distanceKm,
     );
   }
 }

@@ -7,6 +7,8 @@ class UserModel {
   final String contactNumber;
   final String barangay;
   final UserRole role;
+  final bool isApproved;
+  final String responderStatus;
   final DateTime createdAt;
   final String? photoUrl;
 
@@ -17,6 +19,8 @@ class UserModel {
     required this.contactNumber,
     required this.barangay,
     required this.role,
+    this.isApproved = false,
+    this.responderStatus = 'offline',
     required this.createdAt,
     this.photoUrl,
   });
@@ -32,6 +36,8 @@ class UserModel {
         (e) => e.name == json['role'],
         orElse: () => UserRole.resident,
       ),
+      isApproved: json['is_approved'] as bool? ?? false,
+      responderStatus: json['responder_status'] as String? ?? 'offline',
       createdAt: DateTime.parse(json['created_at'] as String),
       photoUrl: json['photo_url'] as String?,
     );
@@ -45,6 +51,8 @@ class UserModel {
       'contact_number': contactNumber,
       'barangay': barangay,
       'role': role.name,
+      'is_approved': isApproved,
+      'responder_status': responderStatus,
       'created_at': createdAt.toIso8601String(),
       'photo_url': photoUrl,
     };
@@ -61,6 +69,8 @@ class UserModel {
     String? contactNumber,
     String? barangay,
     UserRole? role,
+    bool? isApproved,
+    String? responderStatus,
     DateTime? createdAt,
     String? photoUrl,
   }) {
@@ -71,6 +81,8 @@ class UserModel {
       contactNumber: contactNumber ?? this.contactNumber,
       barangay: barangay ?? this.barangay,
       role: role ?? this.role,
+      isApproved: isApproved ?? this.isApproved,
+      responderStatus: responderStatus ?? this.responderStatus,
       createdAt: createdAt ?? this.createdAt,
       photoUrl: photoUrl ?? this.photoUrl,
     );
