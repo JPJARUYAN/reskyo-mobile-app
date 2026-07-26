@@ -154,4 +154,16 @@ class IncidentService {
       return [];
     }
   }
+
+  Stream<IncidentModel?> subscribeToIncident(String incidentId) {
+    return _client
+        .from('incidents')
+        .stream(primaryKey: ['id'])
+        .eq('id', incidentId)
+        .limit(1)
+        .map((list) {
+      if (list.isEmpty) return null;
+      return IncidentModel.fromJson(list.first);
+    });
+  }
 }

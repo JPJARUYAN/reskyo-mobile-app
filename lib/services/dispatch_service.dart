@@ -130,9 +130,26 @@ class DispatchService {
         .from('dispatches')
         .stream(primaryKey: ['id'])
         .eq('responder_id', responderId)
+        .order('dispatched_at', ascending: false)
         .map((list) {
       if (list.isEmpty) return null;
       return DispatchModel.fromJson(list.first);
+    });
+  }
+
+  Stream<List<DispatchModel>> subscribeToIncidentDispatches(String incidentId) {
+    return _client
+        .from('dispatches')
+        .stream(primaryKey: ['id'])
+        .eq('incident_id', incidentId)
+        .order('dispatched_at', ascending: false)
+        .map((list) =>
+            list.map((json) => DispatchModel.fromJson(json)).toList());
+  }
+
+  Future<void> matchRespondersForIncident(String incidentId) async {
+    await _client.rpc('match_responders', params: {
+      'incident_id': incidentId,
     });
   }
 
