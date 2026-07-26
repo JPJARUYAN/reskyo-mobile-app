@@ -1,10 +1,15 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/user_model.dart';
 import '../../models/dispatch_model.dart';
+import '../../models/incident_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/dispatch_service.dart';
+import '../../services/incident_service.dart';
+import '../../services/routing_service.dart';
 import '../../utils/constants.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
@@ -19,11 +24,17 @@ class ResponderHomeScreen extends StatefulWidget {
 class _ResponderHomeScreenState extends State<ResponderHomeScreen> {
   final AuthService _authService = AuthService();
   final DispatchService _dispatchService = DispatchService();
+  final IncidentService _incidentService = IncidentService();
+  final RoutingService _routingService = RoutingService();
   UserModel? _currentUser;
   GoogleMapController? _mapController;
   Position? _currentPosition;
-  DispatchStatus _currentStatus = DispatchStatus.pending; // ignore: unused_field
+
   int _selectedIndex = 0;
+  RouteModel? _currentRoute;
+  IncidentModel? _assignedIncident;
+  Set<Polyline> _polylines = {};
+  Set<Marker> _markers = {};
 
   @override
   void initState() {
@@ -71,6 +82,106 @@ class _ResponderHomeScreenState extends State<ResponderHomeScreen> {
     }
   }
 
+  Future<void> _computeRouteToIncident(IncidentModel incident) async {
+    if (_currentPosition == null) return;
+
+    setState(() {
+      _assignedIncident = incident;
+      _currentRoute = null;
+    });
+
+    // Try A* route via Edge Function
+    final route = await _routingService.computeRoute(
+      startLat: _currentPosition!.latitude,
+      startLng: _currentPosition!.longitude,
+      endLat: incident.latitude,
+      endLng: incident.longitude,
+    );
+
+    if (mounted) {
+      setState(() {
+        _currentRoute = route;
+        _updateMapRoute();
+      });
+    }
+  }
+
+  void _updateMapRoute() {
+    if (_currentRoute == null || _currentPosition == null) return;
+
+    final polylinePoints = _currentRoute!.path
+        .map((p) => LatLng(p.latitude, p.longitude))
+        .toList();
+
+    setState(() {
+      _polylines = {
+        Polyline(
+          polylineId: const PolylineId('route'),
+          color: AppColors.info,
+          width: 5,
+          points: polylinePoints,
+        ),
+      };
+
+      _markers = {
+        Marker(
+          markerId: const MarkerId('current'),
+          position: LatLng(
+            _currentPosition!.latitude,
+            _currentPosition!.longitude,
+          ),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueGreen),
+          infoWindow: const InfoWindow(title: 'Your Location'),
+        ),
+        if (_assignedIncident != null)
+          Marker(
+            markerId: const MarkerId('incident'),
+            position: LatLng(
+              _assignedIncident!.latitude,
+              _assignedIncident!.longitude,
+            ),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueRed),
+            infoWindow: InfoWindow(
+              title: _assignedIncident!.type.label,
+              snippet: _assignedIncident!.address ?? 'Incident Location',
+            ),
+          ),
+      };
+    });
+
+    // Fit map to show both points
+    if (_assignedIncident != null && _mapController != null) {
+      final bounds = LatLngBounds(
+        southwest: LatLng(
+          min(_currentPosition!.latitude, _assignedIncident!.latitude),
+          min(_currentPosition!.longitude, _assignedIncident!.longitude),
+        ),
+        northeast: LatLng(
+          max(_currentPosition!.latitude, _assignedIncident!.latitude),
+          max(_currentPosition!.longitude, _assignedIncident!.longitude),
+        ),
+      );
+      _mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
+    }
+  }
+
+  Future<void> _openInGoogleMaps() async {
+    if (_assignedIncident == null || _currentPosition == null) return;
+
+    final url = RoutingService.googleMapsUrl(
+      originLat: _currentPosition!.latitude,
+      originLng: _currentPosition!.longitude,
+      destLat: _assignedIncident!.latitude,
+      destLng: _assignedIncident!.longitude,
+    );
+
+    if (await canLaunchUrl(Uri.parse(url))) {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    }
+  }
+
   Future<void> _updateStatus(ResponderStatus status) async {
     try {
       await _authService.updateResponderStatus(status);
@@ -88,7 +199,7 @@ class _ResponderHomeScreenState extends State<ResponderHomeScreen> {
       String dispatchId, DispatchStatus status) async {
     try {
       await _dispatchService.updateDispatchStatus(dispatchId, status);
-      setState(() => _currentStatus = status);
+      setState(() {});
       if (mounted) {
         showSnackBar(context, 'Dispatch status updated');
       }
@@ -218,6 +329,8 @@ class _ResponderHomeScreenState extends State<ResponderHomeScreen> {
           onMapCreated: (controller) => _mapController = controller,
           myLocationEnabled: true,
           myLocationButtonEnabled: true,
+          polylines: _polylines,
+          markers: _markers,
         ),
         Positioned(
           top: 16,
@@ -289,13 +402,78 @@ class _ResponderHomeScreenState extends State<ResponderHomeScreen> {
                         ),
                       ],
                     ),
+                    // Route info card (when route is computed)
+                    if (_currentRoute != null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.directions,
+                                color: AppColors.info, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              _currentRoute!.distanceText,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.info,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Icon(Icons.access_time,
+                                color: AppColors.info, size: 18),
+                            const SizedBox(width: 4),
+                            Text(
+                              _currentRoute!.etaText,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.info,
+                              ),
+                            ),
+                            if (_currentRoute!.isFallback) ...[
+                              const SizedBox(width: 8),
+                              const Icon(Icons.warning,
+                                  color: AppColors.warning, size: 14),
+                            ],
+                          ],
+                        ),
+                      ),
+                      // Open in Google Maps button
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _openInGoogleMaps,
+                          icon: const Icon(Icons.map, size: 18),
+                          label: const Text('Open in Google Maps'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.success,
+                            side: const BorderSide(color: AppColors.success),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     if (activeDispatch.status == DispatchStatus.pending)
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: () => _updateDispatchStatus(
-                              activeDispatch.id, DispatchStatus.accepted),
+                          onPressed: () {
+                            _updateDispatchStatus(
+                                activeDispatch.id, DispatchStatus.accepted);
+                            // Fetch incident details and compute route
+                            _incidentService
+                                .getIncident(activeDispatch.incidentId)
+                                .then((incident) {
+                              if (incident != null) {
+                                _computeRouteToIncident(incident);
+                              }
+                            });
+                          },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.success,
                             foregroundColor: Colors.white,
