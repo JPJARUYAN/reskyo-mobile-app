@@ -46,3 +46,6 @@ app.*.map.json
 
 # Supabase local
 supabase/.temp/
+
+# Firebase (contains API keys)
+**/google-services.json
