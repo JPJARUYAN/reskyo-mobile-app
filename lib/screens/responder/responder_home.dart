@@ -13,6 +13,7 @@ import '../../services/routing_service.dart';
 import '../../utils/constants.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../profile_screen.dart';
 
 class ResponderHomeScreen extends StatefulWidget {
   const ResponderHomeScreen({super.key});
@@ -288,6 +289,15 @@ class _ResponderHomeScreenState extends State<ResponderHomeScreen> {
                 ),
               ),
             ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.person),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.logout),

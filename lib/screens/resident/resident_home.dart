@@ -3,11 +3,12 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
-import '../../services/incident_service.dart';
 import '../../utils/constants.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../profile_screen.dart';
 import 'report_incident.dart';
+import 'incident_history_screen.dart';
 
 class ResidentHomeScreen extends StatefulWidget {
   const ResidentHomeScreen({super.key});
@@ -18,7 +19,6 @@ class ResidentHomeScreen extends StatefulWidget {
 
 class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
   final AuthService _authService = AuthService();
-  final IncidentService _incidentService = IncidentService();
   UserModel? _currentUser;
   GoogleMapController? _mapController;
   Position? _currentPosition;
@@ -149,12 +149,25 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
+            icon: const Icon(Icons.person),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _logout,
           ),
         ],
       ),
-      body: _selectedIndex == 0 ? _buildMapSection() : _buildHistorySection(),
+      body: _selectedIndex == 0
+          ? _buildMapSection()
+          : _selectedIndex == 1
+              ? const IncidentHistoryScreen()
+              : const ProfileScreen(),
       floatingActionButton: _selectedIndex == 0
           ? FloatingActionButton.extended(
               onPressed: _reportIncident,
@@ -179,6 +192,10 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.history),
             label: 'My Reports',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profile',
           ),
         ],
       ),
@@ -240,83 +257,4 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
     );
   }
 
-  Widget _buildHistorySection() {
-    return StreamBuilder<List<dynamic>>(
-      stream: _incidentService.subscribeToIncidents(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final incidents = snapshot.data ?? [];
-        final myIncidents = incidents
-            .where((i) => i.reporterId == _authService.currentUserId)
-            .toList();
-
-        if (myIncidents.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.history, size: 64, color: Colors.grey[400]),
-                const SizedBox(height: 16),
-                Text(
-                  'No reports yet',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Your incident reports will appear here',
-                  style: TextStyle(color: Colors.grey[500]),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: myIncidents.length,
-          itemBuilder: (context, index) {
-            final incident = myIncidents[index];
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: incident.type.color.withOpacity(0.2),
-                  child: Icon(incident.type.icon, color: incident.type.color),
-                ),
-                title: Text(incident.type.label),
-                subtitle: Text(
-                  incident.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: incident.status.color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    incident.status.label,
-                    style: TextStyle(
-                      color: incident.status.color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
 }
